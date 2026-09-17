@@ -223,6 +223,12 @@ class TerminalEmulator:
         self.vt100_pending_wrap = False
         self.dirty = True
 
+    def clear_scrollback(self):
+        """Drop all lines that have scrolled off the live 80x24 screen."""
+        self.history.clear()
+        self.history_trimmed = 0
+        self.dirty = True
+
     def _push_scrollback(self, chars, inv):
         """Save a line scrolled off the absolute top of the screen."""
         self.history.append((chars[:], inv[:]))
@@ -1424,7 +1430,11 @@ class TerminalApp:
         self._clear_selection()
         self.view_offset = 0
         self.term.clear()
+        self.term.clear_scrollback()
+        self._reset_status_panel()
         self._sync_scrollbar()
+        self._redraw()
+        self._update_cursor()
 
     def _view_top(self):
         """Absolute row index of the first visible screen row."""
@@ -1537,6 +1547,17 @@ class TerminalApp:
         """Convert RGB nibbles to #R0G0B0 (for example, F12 -> #F01020)."""
         value = value.upper()
         return "#" + "".join(ch + "0" for ch in value)
+
+    def _reset_status_panel(self):
+        """Blank the four-line status panel and restore default colours."""
+        self.status_bg = self.bg
+        for row in range(4):
+            for col in range(TerminalEmulator.COLS):
+                self.status_chars[row][col] = ' '
+                self.status_fg[row][col] = self.fg
+                self.status_cell_bg[row][col] = self.status_bg
+        self.status_panel.config(bg=self.status_bg)
+        self._redraw_status_panel()
 
     def _set_status_background(self, rgb):
         if len(rgb) != 3 or any(ch not in "0123456789abcdefABCDEF" for ch in rgb):
